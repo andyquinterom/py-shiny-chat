@@ -1,6 +1,6 @@
 from .mensaje import Mensaje
 from datetime import datetime
-from shiny import module, ui, Session, reactive, req
+from shiny import module, ui, Session, reactive, req, Inputs, Outputs
 
 class ChatEngine:
     def __init__(self, id_: str) -> None:
@@ -25,7 +25,7 @@ def chat_ui(chat_engine: ChatEngine) -> ui.TagChildArg:
             12,
             ui.div(
                 id_ = chat_engine.id_,
-                style_ = "width: 100%; height: 50vh; border: solid 1px black; overflow-y: scroll; display:flex; flex-direction: column-reverse;"
+                class_ = "chat_box border"
             ),
             ui.tags.br(),
             ui.input_text(
@@ -35,7 +35,7 @@ def chat_ui(chat_engine: ChatEngine) -> ui.TagChildArg:
                 placeholder = "Tu nombre...",
                 width = "100%"
             ),
-            ui.input_text_area(
+            ui.input_text(
                 id = "mensaje",
                 label = None,
                 value = "",
@@ -48,16 +48,20 @@ def chat_ui(chat_engine: ChatEngine) -> ui.TagChildArg:
     return(mod_ui)
 
 @module.server
-def chat_server(input, output, session: Session, chat_engine: ChatEngine):
+def chat_server(input: Inputs, output: Outputs, session: Session, chat_engine: ChatEngine) -> None:
+
+    id_ = chat_engine.id_
+
     @reactive.poll(chat_engine.get_index, 0.5)
     def get_index() -> int:
         return(chat_engine.get_index())
 
     index_actual = reactive.Value(chat_engine.get_index())
 
+    ui.run_js(f"bind_chatbox(\"{id_}\")")
     for mensaje in chat_engine.get_mensajes(from_ = 0):
         ui.insert_ui(
-            selector= "#" + chat_engine.id_,
+            selector= "#" + id_,
             immediate=True,
             where = "afterBegin",
             ui = ui.TagList(
@@ -65,9 +69,10 @@ def chat_server(input, output, session: Session, chat_engine: ChatEngine):
             )
         )
 
+
     @reactive.Effect
     @reactive.event(get_index)
-    def actualizar_mensajes():
+    def actualizar_mensajes() -> None:
         for mensaje in chat_engine.get_mensajes(from_ = index_actual.get()):
             ui.insert_ui(
                 selector= "#" + chat_engine.id_,
@@ -78,16 +83,17 @@ def chat_server(input, output, session: Session, chat_engine: ChatEngine):
                 )
             )
         index_actual.set(get_index())
-        ui.update_text_area(
-            id = "mensaje",
-            value=""
-        )
+
 
     @reactive.Effect
     @reactive.event(input.enviar)
-    def enviar_mensaje():
+    def enviar_mensaje() -> None:
         req(input.nombre())
         req(input.mensaje())
         chat_engine.enviar_mensaje(emisor = input.nombre(), contenido = input.mensaje())
+        ui.update_text(
+            id = "mensaje",
+            value=""
+        )
 
 
